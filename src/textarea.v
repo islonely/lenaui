@@ -75,22 +75,22 @@ const (
 )
 
 // TextArea is a text box that can be edited.
+[heap]
 pub struct TextArea {
 __global:
-	context           gg.Context
-	x                 int
-	y                 int
-	width             int
-	height            int
-	cursor            Cursor
-	caps_lock         bool
-	font_size         int      = 22
-	padding           Padding  = Padding.all(10)
-	text_color        gx.Color = gx.rgb(0xdd, 0xdd, 0xdd)
-	bg_color          gx.Color = gx.rgb(0x22, 0x22, 0x22)
-	lines             [][]rune = [][]rune{len: 1, cap: 5000}
-	show_line_numbers bool     = true
-	line_numbers      struct {
+	context      gg.Context
+	x            int
+	y            int
+	width        int
+	height       int
+	cursor       Cursor
+	caps_lock    bool
+	font_size    int      = 22
+	padding      Padding  = Padding.all(10)
+	text_color   gx.Color = gx.rgb(0xdd, 0xdd, 0xdd)
+	bg_color     gx.Color = gx.rgb(0x22, 0x22, 0x22)
+	lines        [][]rune = [][]rune{len: 1, cap: 5000}
+	line_numbers struct {
 	pub mut:
 		x          int
 		y          int
@@ -103,6 +103,13 @@ __global:
 
 	tab_size               u8   = 4
 	highlight_current_line bool = true
+	scroll_x               int
+	scroll_y               int
+	scrollbar              struct {
+	pub mut:
+		vertical   ScrollBar
+		horizontal ScrollBar
+	}
 }
 
 // NewTextAreaParams is the parameters for creating a new TextArea.
@@ -117,8 +124,8 @@ __global:
 }
 
 // new creates a TextArea with the given parameters.
-pub fn TextArea.new(params NewTextAreaParams) TextArea {
-	mut textarea := TextArea{
+pub fn TextArea.new(params NewTextAreaParams) &TextArea {
+	mut textarea := &TextArea{
 		width: params.width
 		height: params.height
 		context: params.context
@@ -127,6 +134,10 @@ pub fn TextArea.new(params NewTextAreaParams) TextArea {
 	textarea.set_text(params.text)
 	textarea.update_cursor_pos()
 	textarea.update_line_numbers()
+	textarea.scrollbar = struct {
+		vertical: ScrollBar.new(textarea, .vertical)
+		horizontal: ScrollBar.new(textarea, .horizontal)
+	}
 	return textarea
 }
 
@@ -141,20 +152,21 @@ pub fn (mut textarea TextArea) draw() {
 
 	for i, line in textarea.lines {
 		if textarea.highlight_current_line && i == textarea.cursor.line {
-			textarea.context.draw_rect_filled(textarea.x, textarea.y + textarea.padding.top +
-				i * textarea.font_size, textarea.width, textarea.font_size, gx.rgba(0x33,
-				0x33, 0x33, 0x99))
+			textarea.context.draw_rect_filled(textarea.x, textarea.y - textarea.scroll_y +
+				textarea.padding.top + i * textarea.font_size, textarea.width, textarea.font_size,
+				gx.rgba(0x33, 0x33, 0x33, 0x99))
 		}
 		if textarea.line_numbers.show {
 			textarea.context.draw_text(textarea.x + textarea.padding.left +
-				textarea.line_numbers.width, textarea.y + textarea.padding.top +
+				textarea.line_numbers.width, textarea.y - textarea.scroll_y + textarea.padding.top +
 				i * textarea.font_size, line.string().replace('\t', ' '.repeat(textarea.tab_size)),
 				color: textarea.text_color
 				size: textarea.font_size
 			)
 			line_number_x := textarea.line_numbers.x + textarea.line_numbers.width / 2 - text_width(textarea.context,
 				(i + 1).str()) / 2
-			line_number_y := textarea.line_numbers.y + textarea.padding.top + i * textarea.font_size
+			line_number_y := textarea.line_numbers.y - textarea.scroll_y + textarea.padding.top +
+				i * textarea.font_size
 			textarea.context.draw_rect_filled(line_number_x - textarea.line_numbers.padding.left,
 				line_number_y - textarea.line_numbers.padding.top,
 				text_width(textarea.context, (i + 1).str()) + textarea.line_numbers.padding.left +
@@ -174,23 +186,24 @@ pub fn (mut textarea TextArea) draw() {
 		}
 	}
 	textarea.cursor.draw(mut textarea.context)
+	textarea.scrollbar.vertical.draw(mut textarea.context)
+	textarea.scrollbar.horizontal.draw(mut textarea.context)
+
+	draw_debug_rect(mut textarea.context, textarea.x, textarea.y, textarea.content_width(),
+		textarea.content_height(), gx.red)
 }
 
 // update updates the TextArea
 pub fn (mut textarea TextArea) update() {
 	textarea.cursor.update(mut textarea.context)
 	textarea.update_cursor_pos()
+	textarea.update_line_numbers()
 }
 
 // event handles keystrokes for the TextArea.
 pub fn (mut textarea TextArea) event(event &gg.Event, modifiers gg.Modifier) {
-	if event.typ == .mouse_scroll {
-		if modifiers.has(.shift) {
-			textarea.x += int(event.scroll_y * 10)
-		} else {
-			textarea.y += int(event.scroll_y * 10)
-		}
-	}
+	textarea.scrollbar.vertical.event(event, modifiers)
+	textarea.scrollbar.horizontal.event(event, modifiers)
 
 	if event.typ == .key_up {
 		if event.key_code == .caps_lock {
@@ -340,6 +353,24 @@ pub fn (mut textarea TextArea) event(event &gg.Event, modifiers gg.Modifier) {
 	}
 }
 
+// content_height returns the height of the TextArea's content.
+[inline]
+pub fn (textarea TextArea) content_height() int {
+	content_height := textarea.lines.len * textarea.font_size + textarea.padding.top +
+		textarea.padding.bottom
+	return math.max(content_height, textarea.height)
+}
+
+// content_width returns the width of the TextArea's content.
+pub fn (textarea TextArea) content_width() int {
+	mut max_width := 0
+	for line in textarea.lines {
+		max_width = math.max(max_width, text_width(textarea.context, line.string()))
+	}
+	max_width += textarea.padding.left + textarea.padding.right
+	return math.max(max_width, textarea.width)
+}
+
 // update_line_numbers updates the width of the line number container to adjust for the number of
 // lines in the TextArea.
 [inline]
@@ -365,7 +396,8 @@ fn (mut textarea TextArea) update_cursor_x() {
 	// } else {
 	// 	textarea.x + textarea.padding.left + textarea.line_numbers.width
 	// }
-	mut cursor_x := textarea.x + textarea.padding.left + textarea.line_numbers.width
+	mut cursor_x := textarea.x - textarea.scroll_x + textarea.padding.left +
+		textarea.line_numbers.width
 	for i := 0; i < textarea.cursor.col; i++ {
 		if line[i] == `\t` {
 			tab_width := text_width(textarea.context, ' '.repeat(textarea.tab_size))
@@ -379,7 +411,7 @@ fn (mut textarea TextArea) update_cursor_x() {
 
 // update_cursor_y moves the cursor to the correct y position based on the cursor's line.
 fn (mut textarea TextArea) update_cursor_y() {
-	textarea.cursor.set_y(textarea.y + textarea.padding.top +
+	textarea.cursor.set_y(textarea.y - textarea.scroll_y + textarea.padding.top +
 		textarea.cursor.line * textarea.font_size)
 }
 
