@@ -17,6 +17,7 @@ pub fn text_width(context &gg.Context, text string) int {
 	return int(adv / context.scale)
 }
 
+// draw_debug_rect draws a scissor rectangle to visualize a container.
 [if debug]
 pub fn draw_debug_rect(mut context gg.Context, x int, y int, w int, h int, color gx.Color) {
 	context.draw_line_with_config(x, y, x + w, y,

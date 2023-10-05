@@ -38,14 +38,16 @@ __global:
 	// not drawn if this is true
 	hide_when_not_needed bool = true
 	dragging_scrollbar   bool
+	mouse_over           bool
 	bar                  struct {
 	__global:
-		x      int
-		y      int
-		width  int
-		height int
-		radius int      = 10
-		color  gx.Color = gx.rgba(0xbb, 0xbb, 0xbb, 0xcc)
+		x           int
+		y           int
+		width       int
+		height      int
+		radius      int      = 10
+		color       gx.Color = gx.rgba(0xbb, 0xbb, 0xbb, 0xcc)
+		hover_color gx.Color = gx.rgba(0xbb, 0xbb, 0xbb, 0xff)
 	}
 }
 
@@ -85,6 +87,7 @@ pub fn ScrollBar.new(parent &ScrollBarParent, orientation ScrollBarOrientation) 
 	return scrollbar
 }
 
+// update updates the scroll bar's position and size.
 pub fn (mut scrollbar ScrollBar) update() {
 	if scrollbar.orientation == .vertical {
 		scrollbar.bar.height = scrollbar.parent.height * scrollbar.parent.height / scrollbar.parent.content_height()
@@ -105,6 +108,22 @@ pub fn (mut scrollbar ScrollBar) update() {
 
 // event handles events for the scroll bar.
 pub fn (mut scrollbar ScrollBar) event(event &gg.Event, modifiers gg.Modifier) {
+	defer {
+		// clamp scroll values
+		if scrollbar.parent.scroll_x < 0 {
+			scrollbar.parent.scroll_x = 0
+		} else if scrollbar.parent.scroll_x > scrollbar.parent.content_width() - scrollbar.parent.width {
+			scrollbar.parent.scroll_x = scrollbar.parent.content_width() - scrollbar.parent.width
+		}
+		if scrollbar.parent.scroll_y < 0 {
+			scrollbar.parent.scroll_y = 0
+		} else if scrollbar.parent.scroll_y > scrollbar.parent.content_height() - scrollbar.parent.height {
+			scrollbar.parent.scroll_y = scrollbar.parent.content_height() - scrollbar.parent.height
+		}
+
+		scrollbar.update()
+	}
+
 	if event.typ == .mouse_down {
 		mouse_in_scroll_bar := event.mouse_x >= scrollbar.bar.x
 			&& event.mouse_x <= scrollbar.bar.x + scrollbar.bar.width
@@ -116,6 +135,16 @@ pub fn (mut scrollbar ScrollBar) event(event &gg.Event, modifiers gg.Modifier) {
 	} else if event.typ == .mouse_up {
 		scrollbar.dragging_scrollbar = false
 	} else if event.typ == .mouse_move {
+		mouse_in_scroll_bar := event.mouse_x >= scrollbar.bar.x
+			&& event.mouse_x <= scrollbar.bar.x + scrollbar.bar.width
+			&& event.mouse_y >= scrollbar.bar.y
+			&& event.mouse_y <= scrollbar.bar.y + scrollbar.bar.height
+		if mouse_in_scroll_bar {
+			scrollbar.mouse_over = true
+		} else if !scrollbar.dragging_scrollbar {
+			scrollbar.mouse_over = false
+		}
+
 		if scrollbar.dragging_scrollbar {
 			if scrollbar.orientation == .vertical {
 				scroll_min_reached := scrollbar.parent.scroll_y <= 0 && event.mouse_dy < 0
@@ -138,18 +167,6 @@ pub fn (mut scrollbar ScrollBar) event(event &gg.Event, modifiers gg.Modifier) {
 			}
 		}
 	} else if event.typ == .mouse_scroll {
-		// clamp scroll values
-		if scrollbar.parent.scroll_x < 0 {
-			scrollbar.parent.scroll_x = 0
-		} else if scrollbar.parent.scroll_x > scrollbar.parent.content_width() - scrollbar.parent.width {
-			scrollbar.parent.scroll_x = scrollbar.parent.content_width() - scrollbar.parent.width
-		}
-		if scrollbar.parent.scroll_y < 0 {
-			scrollbar.parent.scroll_y = 0
-		} else if scrollbar.parent.scroll_y > scrollbar.parent.content_height() - scrollbar.parent.height {
-			scrollbar.parent.scroll_y = scrollbar.parent.content_height() - scrollbar.parent.height
-		}
-
 		if modifiers.has(.shift) {
 			// scroll left/right on shift + scroll wheel
 			scroll_min_reached := scrollbar.parent.scroll_x == 0 && event.scroll_x > 0
@@ -172,8 +189,6 @@ pub fn (mut scrollbar ScrollBar) event(event &gg.Event, modifiers gg.Modifier) {
 			scrollbar.parent.scroll_y -= int(event.scroll_y * 10)
 		}
 	}
-
-	scrollbar.update()
 }
 
 // draw draws the scroll bar to the context.
@@ -198,5 +213,9 @@ pub fn (mut scrollbar ScrollBar) draw(mut context gg.Context) {
 		scrollbar.container_color)
 	// scrolly bar
 	context.draw_rounded_rect_filled(scrollbar.bar.x, scrollbar.bar.y, scrollbar.bar.width,
-		scrollbar.bar.height, scrollbar.bar.radius, scrollbar.bar.color)
+		scrollbar.bar.height, scrollbar.bar.radius, if scrollbar.mouse_over {
+		scrollbar.bar.hover_color
+	} else {
+		scrollbar.bar.color
+	})
 }
