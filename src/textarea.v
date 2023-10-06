@@ -3,6 +3,8 @@ module lenaui
 import gg
 import gx
 import math
+import lenaui.src.syntax
+import term
 
 const (
 	ascii_alpha_numberic = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.runes()
@@ -78,19 +80,22 @@ const (
 [heap]
 pub struct TextArea {
 __global:
-	context      gg.Context
-	x            int
-	y            int
-	width        int
-	height       int
-	cursor       Cursor
-	caps_lock    bool
-	font_size    int      = 22
-	padding      Padding  = Padding.all(10)
-	text_color   gx.Color = gx.rgb(0xdd, 0xdd, 0xdd)
-	bg_color     gx.Color = gx.rgb(0x22, 0x22, 0x22)
-	lines        [][]rune = [][]rune{len: 1, cap: 5000}
-	line_numbers struct {
+	context       gg.Context
+	x             int
+	y             int
+	width         int
+	height        int
+	cursor        Cursor
+	caps_lock     bool
+	font_size     int      = 22
+	padding       Padding  = Padding.all(10)
+	text_color    gx.Color = gx.rgb(0xdd, 0xdd, 0xdd)
+	bg_color      gx.Color = gx.rgb(0x22, 0x22, 0x22)
+	source string
+	lines         [][]rune = [][]rune{len: 1, cap: 5000}
+	syntax_tokens []syntax.Token = []syntax.Token{cap: 1000}
+	string_color gx.Color = gx.rgb(0x42, 0x60, 0xdd)
+	line_numbers  struct {
 	pub mut:
 		x          int
 		y          int
@@ -132,6 +137,7 @@ pub fn TextArea.new(params NewTextAreaParams) &TextArea {
 		cursor: params.cursor
 	}
 	textarea.set_text(params.text)
+
 	textarea.update_cursor_pos()
 	textarea.update_line_numbers()
 	textarea.scrollbar = struct {
@@ -150,6 +156,12 @@ pub fn (mut textarea TextArea) draw() {
 	textarea.context.draw_rect_filled(textarea.x, textarea.y, textarea.width, textarea.height,
 		textarea.bg_color)
 
+	for i, token in textarea.syntax_tokens {
+		println(term.bright_red(textarea.source[token.start..token.end]))
+		println(token)
+	}
+	textarea.context.quit()
+
 	for i, line in textarea.lines {
 		if textarea.highlight_current_line && i == textarea.cursor.line {
 			textarea.context.draw_rect_filled(textarea.x, textarea.y - textarea.scroll_y +
@@ -163,6 +175,7 @@ pub fn (mut textarea TextArea) draw() {
 				color: textarea.text_color
 				size: textarea.font_size
 			)
+			
 			line_number_x := textarea.line_numbers.x + textarea.line_numbers.width / 2 - text_width(textarea.context,
 				(i + 1).str()) / 2
 			line_number_y := textarea.line_numbers.y - textarea.scroll_y + textarea.padding.top +
@@ -462,9 +475,14 @@ fn (mut textarea TextArea) move_cursor_left() {
 
 // set_text sets the text of the TextArea.
 pub fn (mut textarea TextArea) set_text(text string) {
+	textarea.source = text
 	new_lines := text.split_into_lines()
 	textarea.lines = [][]rune{cap: math.max(new_lines.len, 5000)}
 	for line in new_lines {
 		textarea.lines << line.runes()
 	}
+	textarea.syntax_tokens = syntax.tokenize(
+		source: text
+		language: .v
+	)
 }
