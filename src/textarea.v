@@ -167,9 +167,9 @@ pub fn (mut textarea TextArea) draw() {
 				(i + 1).str()) / 2
 			line_number_y := textarea.line_numbers.y - textarea.scroll_y + textarea.padding.top +
 				i * textarea.font_size
-			textarea.context.draw_rect_filled(line_number_x - textarea.line_numbers.padding.left,
+			textarea.context.draw_rect_filled(textarea.line_numbers.x,
 				line_number_y - textarea.line_numbers.padding.top,
-				text_width(textarea.context, (i + 1).str()) + textarea.line_numbers.padding.left +
+				text_width(textarea.context, (textarea.lines.len + 1).str()) + textarea.line_numbers.padding.left +
 				textarea.line_numbers.padding.right, textarea.font_size +
 				textarea.line_numbers.padding.top + textarea.line_numbers.padding.bottom,
 				textarea.line_numbers.bg_color)
