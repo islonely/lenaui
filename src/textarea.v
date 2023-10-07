@@ -77,8 +77,12 @@ const (
 // TextArea is a text box that can be edited.
 [heap]
 pub struct TextArea {
+mut:
+	children []&Component
+pub mut:
+	parent &Component = unsafe { nil }
 __global:
-	context      gg.Context
+	context      &gg.Context
 	x            int
 	y            int
 	width        int
@@ -116,10 +120,10 @@ __global:
 [params]
 pub struct NewTextAreaParams {
 __global:
-	width   int        [required]
-	height  int        [required]
-	context gg.Context [required]
-	cursor  Cursor     [required]
+	width   int         [required]
+	height  int         [required]
+	context &gg.Context [required]
+	cursor  Cursor      [required]
 	text    string
 }
 
@@ -157,7 +161,7 @@ pub fn (mut textarea TextArea) draw() {
 				gx.rgba(0x33, 0x33, 0x33, 0x99))
 		}
 		if textarea.line_numbers.show {
-			textarea.context.draw_text(textarea.x + textarea.padding.left +
+			textarea.context.draw_text(textarea.x - textarea.scroll_x + textarea.padding.left +
 				textarea.line_numbers.width, textarea.y - textarea.scroll_y + textarea.padding.top +
 				i * textarea.font_size, line.string().replace('\t', ' '.repeat(textarea.tab_size)),
 				color: textarea.text_color
@@ -167,12 +171,11 @@ pub fn (mut textarea TextArea) draw() {
 				(i + 1).str()) / 2
 			line_number_y := textarea.line_numbers.y - textarea.scroll_y + textarea.padding.top +
 				i * textarea.font_size
-			textarea.context.draw_rect_filled(textarea.line_numbers.x,
-				line_number_y - textarea.line_numbers.padding.top,
-				text_width(textarea.context, (textarea.lines.len + 1).str()) + textarea.line_numbers.padding.left +
-				textarea.line_numbers.padding.right, textarea.font_size +
-				textarea.line_numbers.padding.top + textarea.line_numbers.padding.bottom,
-				textarea.line_numbers.bg_color)
+			textarea.context.draw_rect_filled(textarea.line_numbers.x, line_number_y - textarea.line_numbers.padding.top,
+				text_width(textarea.context, (textarea.lines.len + 1).str()) +
+				textarea.line_numbers.padding.left + textarea.line_numbers.padding.right,
+				textarea.font_size + textarea.line_numbers.padding.top +
+				textarea.line_numbers.padding.bottom, textarea.line_numbers.bg_color)
 			textarea.context.draw_text(line_number_x, line_number_y, (i + 1).str(),
 				color: textarea.line_numbers.text_color
 				size: textarea.font_size
@@ -189,7 +192,7 @@ pub fn (mut textarea TextArea) draw() {
 	textarea.scrollbar.vertical.draw(mut textarea.context)
 	textarea.scrollbar.horizontal.draw(mut textarea.context)
 
-	draw_debug_rect(mut textarea.context, textarea.x, textarea.y, textarea.content_width(),
+	draw_debug_rect(mut textarea.context, -textarea.scroll_x, -textarea.scroll_y, textarea.content_width(),
 		textarea.content_height(), gx.red)
 }
 
@@ -201,9 +204,9 @@ pub fn (mut textarea TextArea) update() {
 }
 
 // event handles keystrokes for the TextArea.
-pub fn (mut textarea TextArea) event(event &gg.Event, modifiers gg.Modifier) {
-	textarea.scrollbar.vertical.event(event, modifiers)
-	textarea.scrollbar.horizontal.event(event, modifiers)
+pub fn (mut textarea TextArea) event(event &gg.Event) {
+	textarea.scrollbar.vertical.event(event, textarea.context.key_modifiers)
+	textarea.scrollbar.horizontal.event(event, textarea.context.key_modifiers)
 
 	if event.typ == .key_up {
 		if event.key_code == .caps_lock {
@@ -222,12 +225,14 @@ pub fn (mut textarea TextArea) event(event &gg.Event, modifiers gg.Modifier) {
 		}
 
 		if event.key_code in lenaui.ascii {
-			if !modifiers.has(.ctrl) && ((modifiers.has(.shift) && !textarea.caps_lock)
-				|| (textarea.caps_lock && !modifiers.has(.shift))) {
+			if !textarea.context.key_modifiers.has(.ctrl)
+				&& ((textarea.context.key_modifiers.has(.shift) && !textarea.caps_lock)
+				|| (textarea.caps_lock && !textarea.context.key_modifiers.has(.shift))) {
 				textarea.lines[textarea.cursor.line].insert(textarea.cursor.col, lenaui.ascii[event.key_code][1]) // [1] for captial letters
 				textarea.move_cursor_right()
-			} else if !modifiers.has(.ctrl) && ((!textarea.caps_lock && !modifiers.has(.shift))
-				|| (textarea.caps_lock && modifiers.has(.shift))) {
+			} else if !textarea.context.key_modifiers.has(.ctrl)
+				&& ((!textarea.caps_lock && !textarea.context.key_modifiers.has(.shift))
+				|| (textarea.caps_lock && textarea.context.key_modifiers.has(.shift))) {
 				textarea.lines[textarea.cursor.line].insert(textarea.cursor.col, lenaui.ascii[event.key_code][0]) // [0] for lowercase letters
 				textarea.move_cursor_right()
 			}
@@ -273,7 +278,7 @@ pub fn (mut textarea TextArea) event(event &gg.Event, modifiers gg.Modifier) {
 			return
 		}
 		if event.key_code == .right {
-			if modifiers.has(.ctrl) {
+			if textarea.context.key_modifiers.has(.ctrl) {
 				if textarea.cursor.col == textarea.lines[textarea.cursor.line].len {
 					textarea.move_cursor_right()
 					return
@@ -307,7 +312,7 @@ pub fn (mut textarea TextArea) event(event &gg.Event, modifiers gg.Modifier) {
 			return
 		}
 		if event.key_code == .left {
-			if modifiers.has(.ctrl) {
+			if textarea.context.key_modifiers.has(.ctrl) {
 				if textarea.cursor.col == 0 {
 					textarea.move_cursor_left()
 					return
@@ -390,6 +395,7 @@ fn (mut textarea TextArea) update_cursor_pos() {
 // update_cursor_x moves the cursor to the correct x position based on the cursor's column.
 fn (mut textarea TextArea) update_cursor_x() {
 	line := textarea.lines[textarea.cursor.line]
+
 	// cursor_x := if line.len > 0 {
 	// 	textarea.x + textarea.padding.left + textarea.line_numbers.width +
 	// 		(textarea.cursor.col * text_width(textarea.context, line.string()) / line.len)

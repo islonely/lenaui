@@ -53,3 +53,21 @@ pub fn Padding.all(padding int) Padding {
 		left: padding
 	}
 }
+
+// x returns the total x padding.
+[inline]
+pub fn (padding Padding) x() int {
+	return padding.left + padding.right
+}
+
+// y returns the total y padding.
+[inline]
+pub fn (padding Padding) y() int {
+	return padding.top + padding.bottom
+}
+
+// all returns the total padding.
+[inline]
+pub fn (padding Padding) all() int {
+	return padding.x() + padding.y()
+}
