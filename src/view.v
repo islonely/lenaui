@@ -7,7 +7,7 @@ import gx
 [heap]
 pub struct StandardView {
 __global:
-	parent   ?&Component = unsafe { nil }
+	parent   ?&Component
 	context  &gg.Context
 	x        int
 	y        int

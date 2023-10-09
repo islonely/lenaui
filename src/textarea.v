@@ -80,7 +80,7 @@ pub struct TextArea {
 mut:
 	children []&Component
 pub mut:
-	parent ?&Component = unsafe { nil }
+	parent ?&Component
 __global:
 	position     Position = .relative
 	context      &gg.Context

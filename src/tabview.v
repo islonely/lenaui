@@ -9,7 +9,7 @@ mut:
 	children []&Component
 __global:
 	context  &gg.Context   [required]
-	parent   ?&Component = unsafe { nil }
+	parent   ?&Component
 	x        int
 	y        int
 	width    int
