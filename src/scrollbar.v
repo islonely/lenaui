@@ -52,7 +52,7 @@ __global:
 }
 
 pub fn ScrollBar.new(parent &ScrollBarParent, orientation ScrollBarOrientation) ScrollBar {
-	default_bar_size := 5
+	default_bar_size := 8
 	mut scrollbar := if orientation == .vertical {
 		ScrollBar{
 			parent: unsafe { parent }

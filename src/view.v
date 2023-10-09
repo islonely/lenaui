@@ -7,7 +7,7 @@ import gx
 [heap]
 pub struct StandardView {
 __global:
-	parent   &Component = unsafe { nil }
+	parent   ?&Component = unsafe { nil }
 	context  &gg.Context
 	x        int
 	y        int
@@ -42,19 +42,19 @@ pub fn (mut view StandardView) update() {
 }
 
 // global_x returns the X position of the view added to the X position of its parent.
-pub fn (mut view StandardView) global_x() int {
-	return if view.parent == unsafe { nil } {
-		view.x + view.padding.left
+pub fn (view StandardView) global_x() int {
+	return if mut parent := view.parent {
+		parent.global_x() + view.x + view.padding.left
 	} else {
-		view.parent.global_x() + view.x + view.padding.left
+		view.x + view.padding.left
 	}
 }
 
 // global_y returns the Y position of the view added to the Y position of its parent.
-pub fn (mut view StandardView) global_y() int {
-	return if view.parent == unsafe { nil } {
-		view.y + view.padding.top
+pub fn (view StandardView) global_y() int {
+	return if mut parent := view.parent {
+		parent.global_y() + view.y + view.padding.top
 	} else {
-		view.parent.global_y() + view.y + view.padding.top
+		view.y + view.padding.top
 	}
 }

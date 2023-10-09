@@ -80,7 +80,7 @@ pub struct TextArea {
 mut:
 	children []&Component
 pub mut:
-	parent &Component = unsafe { nil }
+	parent ?&Component = unsafe { nil }
 __global:
 	position     Position = .relative
 	context      &gg.Context
@@ -157,21 +157,19 @@ pub fn (mut textarea TextArea) draw() {
 
 	for i, line in textarea.lines {
 		if textarea.highlight_current_line && i == textarea.cursor.line {
-			textarea.context.draw_rect_filled(textarea.parent.x + textarea.x, textarea.parent.y +
-				textarea.y - textarea.scroll_y + textarea.padding.top + i * textarea.font_size,
+			textarea.context.draw_rect_filled(textarea.x, textarea.y - textarea.scroll_y + textarea.padding.top + i * textarea.font_size,
 				textarea.width, textarea.font_size, gx.rgba(0x33, 0x33, 0x33, 0x99))
 		}
 		if textarea.line_numbers.show {
-			textarea.context.draw_text(textarea.parent.x + textarea.x - textarea.scroll_x +
-				textarea.padding.left + textarea.line_numbers.width, textarea.parent.y +
-				textarea.y - textarea.scroll_y + textarea.padding.top + i * textarea.font_size,
+			textarea.context.draw_text(textarea.x - textarea.scroll_x +
+				textarea.padding.left + textarea.line_numbers.width, textarea.y - textarea.scroll_y + textarea.padding.top + i * textarea.font_size,
 				line.string().replace('\t', ' '/*.repeat(textarea.tab_size)*/),
 				color: textarea.text_color
 				size: textarea.font_size
 			)
 			line_number_x := textarea.line_numbers.x + textarea.line_numbers.width / 2 - text_width(textarea.context,
-				(i + 1).str()) / 2
-			line_number_y := textarea.line_numbers.y + textarea.parent.y - textarea.scroll_y +
+				(i + 1).str()) / 2 + textarea.line_numbers.padding.left / 2
+			line_number_y := textarea.line_numbers.y + textarea.scroll_y +
 				textarea.padding.top + i * textarea.font_size
 			textarea.context.draw_rect_filled(textarea.line_numbers.x, line_number_y - textarea.line_numbers.padding.top,
 				text_width(textarea.context, (textarea.lines.len + 1).str()) +
@@ -361,20 +359,20 @@ pub fn (mut textarea TextArea) event(event &gg.Event) {
 }
 
 // global_x returns the global X position of the TextArea.
-pub fn (mut textarea TextArea) global_x() int {
-	return if textarea.parent == unsafe { nil } {
-		textarea.x + textarea.padding.left
+pub fn (textarea TextArea) global_x() int {
+	return if mut parent := textarea.parent {
+		parent.global_x() + textarea.x + textarea.padding.left
 	} else {
-		textarea.parent.global_x() + textarea.x + textarea.padding.left
+		textarea.x + textarea.padding.left
 	}
 }
 
 // global_y returns the global Y position of the TextArea.
-pub fn (mut textarea TextArea) global_y() int {
-	return if textarea.parent == unsafe { nil } {
-		textarea.y + textarea.padding.top
+pub fn (textarea TextArea) global_y() int {
+	return if mut parent := textarea.parent {
+		parent.global_y() + textarea.y + textarea.padding.top
 	} else {
-		textarea.parent.global_y() + textarea.y + textarea.padding.top
+		textarea.y + textarea.padding.top
 	}
 }
 
@@ -437,7 +435,7 @@ fn (mut textarea TextArea) update_cursor_x() {
 
 // update_cursor_y moves the cursor to the correct y position based on the cursor's line.
 fn (mut textarea TextArea) update_cursor_y() {
-	textarea.cursor.set_y(textarea.parent.y + textarea.y - textarea.scroll_y +
+	textarea.cursor.set_y(textarea.y - textarea.scroll_y +
 		textarea.padding.top + textarea.cursor.line * textarea.font_size)
 }
 

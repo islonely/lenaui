@@ -9,7 +9,7 @@ mut:
 	children []&Component
 __global:
 	context  &gg.Context   [required]
-	parent   &Component = unsafe { nil }
+	parent   ?&Component = unsafe { nil }
 	x        int
 	y        int
 	width    int
@@ -42,20 +42,20 @@ pub fn (mut tabview TabView) push_tab(tab &Tab) {
 }
 
 // global_x returns the X position of the TabView relative to the window.
-pub fn (mut tabview TabView) global_x() int {
-	return if tabview.parent == unsafe { nil } {
-		tabview.x + tabview.padding.left
+pub fn (tabview TabView) global_x() int {
+	return if mut parent := tabview.parent {
+		parent.global_x() + tabview.x + tabview.padding.left
 	} else {
-		tabview.parent.global_x() + tabview.x + tabview.padding.left
+		tabview.x + tabview.padding.left
 	}
 }
 
 // global_y returns the Y position of the TabView relative to the window.
-pub fn (mut tabview TabView) global_y() int {
-	return if tabview.parent == unsafe { nil } {
-		tabview.y + tabview.padding.top
+pub fn (tabview TabView) global_y() int {
+	return if mut parent := tabview.parent {
+		parent.global_y() + tabview.y + tabview.padding.top
 	} else {
-		tabview.parent.global_y() + tabview.y + tabview.padding.top
+		tabview.y + tabview.padding.top
 	}
 }
 
@@ -93,30 +93,21 @@ pub fn (mut tabview TabView) draw() {
 			tabview.tab.bg_color
 		}
 
-		child_x := tabview.x + tabview.padding.left
-		child_y := tabview.y + tabview.padding.top + tab_height + tabview.tab.margin.y()
-		child_width := tabview.width - tabview.padding.left - tabview.padding.right
-		child_height := tabview.height - tabview.padding.top - tabview.padding.bottom
-		tab.view.width = child_width
-		tab.view.height = child_height
-		tab.view.x = child_x
-		tab.view.y = child_y
-
 		if i == tabview.tab.index {
 			tab.view.draw()
 		}
 
-		{ // draw tabs
-			tabview.context.draw_rounded_rect_filled(tab_x, tab_y, tab_width, tab_height,
-				tabview.tab.radius, tab_color)
-			tabview.context.draw_text(tab_x + tabview.tab.padding.left, tab_y +
-				tabview.tab.padding.top, tab.short_name,
-				color: tabview.tab.text_color
-				bold: if i == tabview.tab.index { true } else { false }
-				size: tabview.tab.font_size
-			)
-			total_tab_width += tab_width + tabview.tab.margin.right + tabview.tab.margin.left
-		}
+		tabview.context.draw_rounded_rect_filled(tab_x, tab_y, tab_width, tab_height,
+			tabview.tab.radius, tab_color)
+		tabview.context.draw_text(tab_x + tabview.tab.padding.left, tab_y + tabview.tab.padding.top,
+			tab.short_name,
+			color: tabview.tab.text_color
+			bold: if i == tabview.tab.index { true } else { false }
+			size: tabview.tab.font_size
+		)
+		total_tab_width += tab_width + tabview.tab.margin.right + tabview.tab.margin.left
+
+		draw_debug_rect(mut tabview.context, tab_x, tab_y, tab_width, tab_height, gx.green)
 	}
 }
 

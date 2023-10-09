@@ -3,9 +3,11 @@ module lenaui
 import gg
 
 pub interface Component {
+	global_x() int
+	global_y() int
 mut:
 	context &gg.Context
-	parent &Component
+	parent ?&Component
 	x int
 	y int
 	width int
@@ -16,8 +18,6 @@ mut:
 	draw()
 	update()
 	event(event &gg.Event)
-	global_x() int
-	global_y() int
 }
 
 pub fn (mut component Component) push_child(child &Component) {
